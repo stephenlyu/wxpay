@@ -122,7 +122,7 @@ func (this *AppTrans) NewPaymentRequest(prepayId string) PaymentRequest {
 		PartnerId: this.Config.MchId,
 		PrepayId:  prepayId,
 		Package:   "Sign=WXPay",
-		NonceStr:  NewNonceString(),
+		NonceStr:  param["noncestr"],
 		Timestamp: NewTimestampString(),
 		Sign:      sign,
 	}
