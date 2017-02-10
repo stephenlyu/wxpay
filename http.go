@@ -32,9 +32,9 @@ func NewAppTrans(cfg *WxConfig) (*AppTrans, error) {
 // Submit the order to weixin pay and return the prepay id if success,
 // Prepay id is used for app to start a payment
 // If fail, error is not nil, check error for more information
-func (this *AppTrans) Submit(orderId string, amount float64, desc string, clientIp string) (string, error) {
+func (this *AppTrans) Submit(orderId string, amount float64, desc string, clientIp string, openId string) (string, error) {
 
-	odrInXml := this.signedOrderRequestXmlString(orderId, fmt.Sprintf("%.0f", amount), desc, clientIp)
+	odrInXml := this.signedOrderRequestXmlString(orderId, fmt.Sprintf("%.0f", amount), desc, clientIp, openId)
 	resp, err := doHttpPost(this.Config.PlaceOrderUrl, []byte(odrInXml))
 	if err != nil {
 		return "", err
@@ -123,14 +123,38 @@ func (this *AppTrans) NewPaymentRequest(prepayId string) PaymentRequest {
 		PrepayId:  prepayId,
 		Package:   "Sign=WXPay",
 		NonceStr:  param["noncestr"],
-		Timestamp: NewTimestampString(),
+		Timestamp: param["timeStamp"],
 		Sign:      sign,
 	}
 
 	return payRequest
 }
 
-func (this *AppTrans) newOrderRequest(orderId, amount, desc, clientIp string) map[string]string {
+// Different params to APP pay
+func (this *AppTrans) NewJSAPIPaymentRequest(prepayId string) PaymentRequest {
+	param := make(map[string]string)
+	param["appId"] = this.Config.AppId
+	param["timeStamp"] = NewTimestampString()
+	param["nonceStr"] = NewNonceString()
+	param["package"] = "prepay_id=" + prepayId
+	param["signType"] = "MD5"
+
+	sign := Sign(param, this.Config.AppKey)
+
+	payRequest := PaymentRequest{
+		AppId:     this.Config.AppId,
+		PartnerId: this.Config.MchId,
+		PrepayId:  prepayId,
+		Package:   param["package"],
+		NonceStr:  param["nonceStr"],
+		Timestamp: param["timeStamp"],
+		Sign:      sign,
+	}
+
+	return payRequest
+}
+
+func (this *AppTrans) newOrderRequest(orderId, amount, desc, clientIp string, openId string) map[string]string {
 	param := make(map[string]string)
 	param["appid"] = this.Config.AppId
 	param["attach"] = "透传字段" //optional
@@ -142,12 +166,15 @@ func (this *AppTrans) newOrderRequest(orderId, amount, desc, clientIp string) ma
 	param["spbill_create_ip"] = clientIp
 	param["total_fee"] = amount
 	param["trade_type"] = this.Config.TradeType
+	if openId != "" {
+		param["openid"] = openId
+	}
 
 	return param
 }
 
-func (this *AppTrans) signedOrderRequestXmlString(orderId, amount, desc, clientIp string) string {
-	order := this.newOrderRequest(orderId, amount, desc, clientIp)
+func (this *AppTrans) signedOrderRequestXmlString(orderId, amount, desc, clientIp string, openId string) string {
+	order := this.newOrderRequest(orderId, amount, desc, clientIp, openId)
 	sign := Sign(order, this.Config.AppKey)
 	// fmt.Println(sign)
 
